@@ -4,7 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime, date
 
-locale.setlocale(locale.LC_TIME, "")
+locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
 
 SEP_CHAR = "#"
 NB_SEB = 90
