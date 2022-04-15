@@ -9,7 +9,7 @@ Use `-h` for more informations.
 
 ## Output example:
 `python3 agricas.py -d 1`
-```
+```bash
 ##########################################################################################
  Jeudi 14/04 :
    - Boulettes De Mouton Curry Madras                                                 3,25€ 
