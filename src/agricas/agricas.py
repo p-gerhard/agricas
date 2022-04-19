@@ -124,8 +124,7 @@ def pprint_menu(menu, nb_days_print=1):
                     "{}   - {:<80} {}".format(c_start, menu["side_dishes"][idx], c_end)
                 )
 
-
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--days",
@@ -142,3 +141,7 @@ if __name__ == "__main__":
     for menu in menu_lst:
         pprint_menu(menu, args.days)
     pprint_sep()
+  
+
+if __name__ == "__main__":
+    main()
