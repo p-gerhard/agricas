@@ -54,35 +54,35 @@ def get_data():
         date = b.find(class_="menuCategroyTitle")
         date = date.get_text(strip=True, separator="\n")
         date = is_date(date)
-        assert date is not None
-        menu["date"] = date
+        if date is not None:
+            menu["date"] = date
 
-        # Parse prices.
-        prices = b.find_all(class_="menuItemPrice")
-        prices = [
-            p.get_text(strip=True, separator="\n").replace(" ", "") for p in prices
-        ]
+            # Parse prices.
+            prices = b.find_all(class_="menuItemPrice")
+            prices = [
+                p.get_text(strip=True, separator="\n").replace(" ", "") for p in prices
+            ]
 
-        # Parse names.
-        names = b.find_all(class_="menuItemName")
-        names = [n.get_text(strip=True, separator="\n").title() for n in names]
+            # Parse names.
+            names = b.find_all(class_="menuItemName")
+            names = [n.get_text(strip=True, separator="\n").title() for n in names]
 
-        # Check.
-        assert len(prices) == len(names)
-        menu["prices"] = prices
-        menu["names"] = names
+            # Check.
+            assert len(prices) == len(names)
+            menu["prices"] = prices
+            menu["names"] = names
 
-        # Parse side dishes.
-        # WARNING: since side dishes look constant for all names in a same block
-        # we only keep the first entry.
-        side_dishes = b.find_all(class_="menuItemDesc")
-        side_dishes = (
-            side_dishes[0].get_text(strip=True, separator="\n").title().split(" - ")
-        )
+            # Parse side dishes.
+            # WARNING: since side dishes look constant for all names in a same block
+            # we only keep the first entry.
+            side_dishes = b.find_all(class_="menuItemDesc")
+            side_dishes = (
+                side_dishes[0].get_text(strip=True, separator="\n").title().split(" - ")
+            )
 
-        menu["side_dishes"] = side_dishes
+            menu["side_dishes"] = side_dishes
 
-        menu_lst.append(menu)
+            menu_lst.append(menu)
 
     return menu_lst
 
