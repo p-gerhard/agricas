@@ -144,7 +144,6 @@ def get_data():
 
 
 def pprint_menu(menu, nb_days_print=1):
-
     d = cast_date(menu["date"])
     today = date.today()
 
@@ -163,13 +162,28 @@ def pprint_menu(menu, nb_days_print=1):
 
         if menu["names"] != [""]:
             for idx in range(len(menu["names"])):
-                name = "\n     ".join(textwrap.wrap(menu["names"][idx], 80))
-
-                print(
-                    "{}   - {:<80} {:<5} {}".format(
-                        c_start, name, menu["prices"][idx], c_end
+                name = textwrap.wrap(menu["names"][idx], 80)
+    
+                nb_line = len(name)
+                if nb_line < 2:
+                    print(
+                        "{}   - {:<80} {:<5} {}".format(
+                            c_start, name[0], menu["prices"][idx], c_end
+                        )
                     )
-                )
+                else:
+                    print(
+                        "{}   - {:<80} {}".format(
+                            c_start, name[0], c_end
+                        )
+                    )
+                    for i in range(1, nb_line - 1):
+                        print("{}     {:<80} {}".format(c_start, name[i], c_end))
+                    
+                    print(
+                        "{}     {:<80} {:<5} {}".format(c_start, name[-1], menu["prices"][idx], c_end
+                        )
+                    )
 
         if menu["side_dishes"] != [""]:
             print("{} {} :{}".format(c_start, "Accompagnements", c_end))
