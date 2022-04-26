@@ -1,10 +1,12 @@
 import argparse, sys
 import locale
 import requests
+import textwrap
+import re
 from bs4 import BeautifulSoup
 from datetime import datetime, date
 
-locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
+locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
 
 SEP_CHAR = "#"
 NB_SEB = 90
@@ -26,14 +28,68 @@ HEADERS = {
     "Upgrade-Insecure-Requests": "1",
 }
 
+FR_DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
+FR_MONTHS = [
+    "janvier",
+    "février",
+    "mars",
+    "avril",
+    "mai",
+    "juin",
+    "juillet",
+    "août",
+    "septembre",
+    "octobre",
+    "novembre",
+    "décembre",
+]
 
-def is_date(string):
+
+def get_date(string):
     string = string.title().strip()
+    string_lo = string.lower()
+
+    # Make a dummy research to extract date field.
+    day = [d.title() for d in FR_DAYS if d in string_lo]
+    month = [m.title() for m in FR_MONTHS if m in string_lo]
+    n_day = re.findall(r"\d{1,2}", string_lo)
+
+    # Avoid index error if nothing is found.
+    if day == []:
+        day.append("")
+
+    if n_day == []:
+        n_day.append("")
+
+    if month == []:
+        month.append("")
+
+    d_str = "{} {} {}".format(day[0], n_day[0], month[0])
+
+    return d_str
+
+
+def cast_date(d_str):
     try:
-        d = datetime.strptime("{} {}".format(string, date.today().year), "%A %d %B %Y")
+        d = datetime.strptime("{} {}".format(d_str, date.today().year), "%A %d %B %Y")
         return d
     except ValueError:
         return None
+
+
+def is_date_to_display(d, today, nb_days_print):
+    if (
+        d is not None
+        and d.day >= today.day
+        and d.month >= today.month
+        and d.day <= today.day + nb_days_print
+    ):
+        return True
+    # DEBUG: Malformed dates fall here.
+    # elif d is None:
+    #     return True
+    else:
+        return False
 
 
 def pprint_sep():
@@ -48,47 +104,48 @@ def get_data():
     blocks = soup.find_all(class_="menuCategory")
 
     menu_lst = []
+    count = 0
     for b in blocks:
         menu = {"date": None, "prices": [], "names": [], "side_dishes": []}
         # Parse date.
         date = b.find(class_="menuCategroyTitle")
         date = date.get_text(strip=True, separator="\n")
-        date = is_date(date)
-        if date is not None:
-            menu["date"] = date
+        date = get_date(date)
 
-            # Parse prices.
-            prices = b.find_all(class_="menuItemPrice")
-            prices = [
-                p.get_text(strip=True, separator="\n").replace(" ", "") for p in prices
-            ]
+        menu["date"] = date
 
-            # Parse names.
-            names = b.find_all(class_="menuItemName")
-            names = [n.get_text(strip=True, separator="\n").title() for n in names]
+        # Parse prices.
+        prices = b.find_all(class_="menuItemPrice")
+        prices = [
+            p.get_text(strip=True, separator="\n").replace(" ", "") for p in prices
+        ]
 
-            # Check.
-            assert len(prices) == len(names)
-            menu["prices"] = prices
-            menu["names"] = names
+        # Parse names.
+        names = b.find_all(class_="menuItemName")
+        names = [n.get_text(strip=True, separator="\n").title() for n in names]
 
-            # Parse side dishes.
-            # WARNING: since side dishes look constant for all names in a same block
-            # we only keep the first entry.
-            side_dishes = b.find_all(class_="menuItemDesc")
-            side_dishes = (
-                side_dishes[0].get_text(strip=True, separator="\n").title().split(" - ")
-            )
+        # Check.
+        assert len(prices) == len(names)
+        menu["prices"] = prices
+        menu["names"] = names
 
-            menu["side_dishes"] = side_dishes
+        # Parse side dishes.
+        # WARNING: since side dishes look constant for all names in a same block
+        # we only keep the first entry.
+        side_dishes = b.find_all(class_="menuItemDesc")
+        side_dishes = (
+            side_dishes[0].get_text(strip=True, separator="\n").title().split(" - ")
+        )
 
-            menu_lst.append(menu)
+        menu["side_dishes"] = list(set(side_dishes))
+        menu_lst.append(menu)
 
     return menu_lst
 
 
 def pprint_menu(menu, nb_days_print=1):
-    d_txt = menu["date"].strftime("%A %d/%m").title()
+
+    d = cast_date(menu["date"])
     today = date.today()
 
     # Default color.
@@ -96,23 +153,21 @@ def pprint_menu(menu, nb_days_print=1):
     c_end = COLOR_DEFAULT_END
 
     # Change color if the date match today
-    if menu["date"].day == today.day and menu["date"].month == today.month:
+    if d is not None and d.day == today.day and d.month == today.month:
         c_start = COLOR_GREEN_START
         c_end = COLOR_GREEN_END
 
-    if (
-        menu["date"].day >= today.day
-        and menu["date"].month >= today.month
-        and menu["date"].day <= today.day + nb_days_print
-    ):
+    if is_date_to_display(d, today, nb_days_print):
         pprint_sep()
-        print("{} {} :{}".format(c_start, d_txt, c_end))
+        print("{} {} :{}".format(c_start, menu["date"], c_end))
 
         if menu["names"] != [""]:
             for idx in range(len(menu["names"])):
+                name = "\n     ".join(textwrap.wrap(menu["names"][idx], 80))
+
                 print(
                     "{}   - {:<80} {:<5} {}".format(
-                        c_start, menu["names"][idx], menu["prices"][idx], c_end
+                        c_start, name, menu["prices"][idx], c_end
                     )
                 )
 
@@ -123,6 +178,7 @@ def pprint_menu(menu, nb_days_print=1):
                 print(
                     "{}   - {:<80} {}".format(c_start, menu["side_dishes"][idx], c_end)
                 )
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -137,11 +193,11 @@ def main():
     args = args = parser.parse_args()
 
     menu_lst = get_data()
-    
+
     for menu in menu_lst:
         pprint_menu(menu, args.days)
     pprint_sep()
-  
+
 
 if __name__ == "__main__":
     main()
