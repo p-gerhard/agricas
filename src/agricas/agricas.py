@@ -4,7 +4,7 @@ import requests
 import textwrap
 import re
 from bs4 import BeautifulSoup
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
 
@@ -78,18 +78,13 @@ def cast_date(d_str):
 
 
 def is_date_to_display(d, today, nb_days_print):
-    if (
-        d is not None
-        and d.day >= today.day
-        and d.month >= today.month
-        and d.day <= today.day + nb_days_print
-    ):
-        return True
-    # DEBUG: Malformed dates fall here.
-    # elif d is None:
-    #     return True
-    else:
-        return False
+
+    max_date = today + timedelta(days=nb_days_print)
+    if d is not None:
+        if d.date() <= max_date:
+            return True
+
+    return False
 
 
 def pprint_sep():
@@ -163,7 +158,7 @@ def pprint_menu(menu, nb_days_print=1):
         if menu["names"] != [""]:
             for idx in range(len(menu["names"])):
                 name = textwrap.wrap(menu["names"][idx], 80)
-    
+
                 nb_line = len(name)
                 if nb_line < 2:
                     print(
@@ -172,16 +167,13 @@ def pprint_menu(menu, nb_days_print=1):
                         )
                     )
                 else:
-                    print(
-                        "{}   - {:<80} {}".format(
-                            c_start, name[0], c_end
-                        )
-                    )
+                    print("{}   - {:<80} {}".format(c_start, name[0], c_end))
                     for i in range(1, nb_line - 1):
                         print("{}     {:<80} {}".format(c_start, name[i], c_end))
-                    
+
                     print(
-                        "{}     {:<80} {:<5} {}".format(c_start, name[-1], menu["prices"][idx], c_end
+                        "{}     {:<80} {:<5} {}".format(
+                            c_start, name[-1], menu["prices"][idx], c_end
                         )
                     )
 
