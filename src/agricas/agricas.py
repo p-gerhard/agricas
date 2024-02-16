@@ -165,11 +165,13 @@ class AgricasMenuPrinter:
         - dict: Filtered menu data.
         """
         if days is not None:
-            min_date = min(
-                (data["date"].date() for data in menu_per_day.values()), default=None
-            )
-            today = max(date.today(), min_date)
-            end_date = max(today, min_date + timedelta(days=days))
+            today = date.today()
+
+            end_date = max(today, today + timedelta(days=days))
+
+            # Check if we fall in a week-end
+            if end_date.strftime("%A").lower() in ["samedi", "dimanche"]:
+                end_date = max(today, today + timedelta(days=days + 2))
 
             menu_per_day = {
                 day: data
