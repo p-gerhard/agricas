@@ -1,23 +1,19 @@
-import argparse, sys
-import locale
-import requests
-import textwrap
-import re
-from bs4 import BeautifulSoup
-from datetime import datetime, date, timedelta
+from __future__ import annotations
 
+import argparse
+import locale
+import re
+from datetime import date, datetime, timedelta
+from typing import Any
+
+import requests
+from bs4 import BeautifulSoup
+
+# Set French locale
 locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
 
-SEP_CHAR = "#"
-NB_SEB = 90
-COLOR_GREEN_START = "\33[32m"
-COLOR_GREEN_END = "\033[0m"
-COLOR_DEFAULT_START = ""
-COLOR_DEFAULT_END = ""
-
-URL = "http://www.agricas.fr/menu-au-ria"
-
-HEADERS = {
+_URL = "http://www.agricas.fr/menu-au-ria"
+_HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:99.0) Gecko/20100101 Firefox/99.0",
     "Host": "www.agricas.fr",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
@@ -28,181 +24,213 @@ HEADERS = {
     "Upgrade-Insecure-Requests": "1",
 }
 
-FR_DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"]
-FR_MONTHS = [
-    "janvier",
-    "février",
-    "mars",
-    "avril",
-    "mai",
-    "juin",
-    "juillet",
-    "août",
-    "septembre",
-    "octobre",
-    "novembre",
-    "décembre",
-]
+_PRINT_BASE_WIDTH = 100
+_COLOR_START = "\33[32m"
+_COLOR_END = "\033[0m"
 
 
-def get_date(string):
-    string = string.title().strip()
-    string_lo = string.lower()
+class AgricasMenuPrinter:
+    def __init__(self, url: str, headers: dict[str], print_base_width: int):
+        """
+        Initialize AgricasMenuPrinter.
 
-    # Make a dummy research to extract date field.
-    day = [d.title() for d in FR_DAYS if d in string_lo]
-    month = [m.title() for m in FR_MONTHS if m in string_lo]
-    n_day = re.findall(r"\d{1,2}", string_lo)
+        Parameters:
+        - url (str): The URL to fetch the menu.
+        - headers (dict): Headers for the HTTP request.
+        - print_base_width (int): Width for printing menu items.
+        """
+        self.url = url
+        self.headers = headers
+        self.print_base_width = print_base_width
 
-    # Avoid index error if nothing is found.
-    if day == []:
-        day.append("")
+    def get_html(self) -> bytes | None:
+        """
+        Fetch HTML content from the specified URL.
 
-    if n_day == []:
-        n_day.append("")
+        Returns:
+        - bytes: HTML content.
+        """
+        try:
+            response = requests.get(self.url, headers=self.headers)
+            response.raise_for_status()
+            return response.content
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching HTML: {e}")
+            return None
 
-    if month == []:
-        month.append("")
+    def parse_date(self, date_str: str, year: str) -> datetime:
+        """
+        Parse a date string and replace the year.
 
-    d_str = "{} {} {}".format(day[0], n_day[0], month[0])
+        Parameters:
+        - date_str (str): The date string to parse.
+        - year (int): The year to replace in the parsed date.
 
-    return d_str
+        Returns:
+        - datetime: Parsed and formatted date.
+        """
+        return datetime.strptime(date_str, "%A %d %B").replace(year=year)
 
+    def extract_menu_info(self, item) -> tuple[str, str, str]:
+        """
+        Extract menu information from a BeautifulSoup menu item.
 
-def cast_date(d_str):
-    try:
-        d = datetime.strptime("{} {}".format(d_str, date.today().year), "%A %d %B %Y")
-        return d
-    except ValueError:
+        Parameters:
+        - item (bs4.element.Tag): Menu item.
+
+        Returns:
+        - tuple: Menu, side, and cost information.
+        """
+        menu = item.find("div", class_="menuItemName").text.strip().title()
+        side = item.find("div", class_="menuItemDesc").text.strip()
+        cost = item.find("div", class_="menuItemPrice").text.strip()
+        return menu, side, cost
+
+    def process_menu_category(self, cat, year) -> tuple[str, dict[str, Any]] | None:
+        """
+        Process a menu category and extract relevant information.
+
+        Parameters:
+        - cat (bs4.element.Tag): Menu category.
+        - year (int): The year to replace in the parsed date.
+
+        Returns:
+        - tuple or None: Day and menu data if successful, None otherwise.
+        """
+        match = re.match(
+            r"(\w+)\s+(\d+\s+\w+)",
+            cat.find("h3", class_="menuCategroyTitle").text.strip(),
+        )
+        if match:
+            day_name, day_date = match.groups()
+            date_obj = self.parse_date(f"{day_name} {day_date}", year)
+
+            menus = []
+            sides = set()
+
+            for item in cat.find_all("div", class_="menuItemBox"):
+                menu, side, cost = self.extract_menu_info(item)
+
+                if menu and side and cost:
+                    menus.append({"menu": menu, "cost": cost})
+
+                if side:
+                    sides.update(val.strip().lower() for val in side.split("-"))
+
+            return date_obj.strftime("%A"), {
+                "date": date_obj,
+                "menus": menus,
+                "sides": sides,
+            }
         return None
 
+    def get_menus(self) -> dict:
+        """
+        Get menus from the HTML content.
 
-def is_date_to_display(d, today, nb_days_print):
+        Returns:
+        - dict: Menu data.
+        """
+        html_content = self.get_html()
+        if not html_content:
+            return {}
 
-    max_date = today + timedelta(days=nb_days_print)
-    if d is not None:
-        if d.date() <= max_date:
-            return True
+        soup = BeautifulSoup(html_content, "html.parser")
+        year = datetime.now().year
 
-    return False
+        menu_per_day = {}
 
+        for cat in soup.find_all("div", class_="menuCategory"):
+            result = self.process_menu_category(
+                cat,
+                year,
+            )
 
-def pprint_sep():
-    print("{}".format(NB_SEB * SEP_CHAR))
+            if result:
+                day, data = result
+                menu_per_day[day] = data
 
+        return menu_per_day
 
-def get_data():
-    res = requests.get(URL, headers=HEADERS)
-    soup = BeautifulSoup(res.content, "lxml")
+    def filter_menu(self, menu_per_day: dict[str], days: int) -> dict | Any:
+        """
+        Filter menus based on the specified number of days.
 
-    # Extract the html field containing menu data.
-    blocks = soup.find_all(class_="menuCategory")
+        Parameters:
+        - menu_per_day (dict): Menu data.
+        - days (int): Number of days to display menus for from today.
 
-    menu_lst = []
-    count = 0
-    for b in blocks:
-        menu = {"date": None, "prices": [], "names": [], "side_dishes": []}
-        # Parse date.
-        date = b.find(class_="menuCategroyTitle")
-        date = date.get_text(strip=True, separator="\n")
-        date = get_date(date)
+        Returns:
+        - dict: Filtered menu data.
+        """
+        if days is not None:
+            min_date = min(
+                (data["date"].date() for data in menu_per_day.values()), default=None
+            )
+            today = max(date.today(), min_date)
+            end_date = max(today, min_date + timedelta(days=days))
 
-        menu["date"] = date
+            menu_per_day = {
+                day: data
+                for day, data in menu_per_day.items()
+                if today <= data["date"].date() <= end_date
+            }
 
-        # Parse prices.
-        prices = b.find_all(class_="menuItemPrice")
-        prices = [
-            p.get_text(strip=True, separator="\n").replace(" ", "") for p in prices
-        ]
+        return menu_per_day
 
-        # Parse names.
-        names = b.find_all(class_="menuItemName")
-        names = [n.get_text(strip=True, separator="\n").title() for n in names]
+    def print_menus(self, menu_per_day: dict[str]) -> None:
+        """
+        Print menus in a formatted way.
 
-        # Check.
-        assert len(prices) == len(names)
-        menu["prices"] = prices
-        menu["names"] = names
+        Parameters:
+        - menu_per_day (dict): Menu data.
+        """
+        for _, data in menu_per_day.items():
+            is_today = date.today() == data["date"].date()
+            c_s = _COLOR_START if is_today else ""
+            c_e = _COLOR_END if is_today else ""
 
-        # Parse side dishes.
-        # WARNING: since side dishes look constant for all names in a same block
-        # we only keep the first entry.
-        side_dishes = b.find_all(class_="menuItemDesc")
-        side_dishes = (
-            side_dishes[0].get_text(strip=True, separator="\n").title().split(" - ")
-        )
+            print(f"+{'-' * self.print_base_width}+")
+            print(f"{c_s} {data['date'].strftime('%a %d %B %Y').title()}{c_e}")
 
-        menu["side_dishes"] = list(set(side_dishes))
-        menu_lst.append(menu)
+            for item in data["menus"]:
+                menu_line = f"  - {c_s}{item['menu']:<{self.print_base_width-9}} {item['cost']}{c_e}"
+                print(menu_line)
 
-    return menu_lst
+            if data["sides"]:
+                print(f"{c_s} Accompagnements:{c_e}")
+                for d in data["sides"]:
+                    print(f"{c_s}  - {d.title()}{c_e}")
 
-
-def pprint_menu(menu, nb_days_print=1):
-    d = cast_date(menu["date"])
-    today = date.today()
-
-    # Default color.
-    c_start = COLOR_DEFAULT_START
-    c_end = COLOR_DEFAULT_END
-
-    # Change color if the date match today
-    if d is not None and d.day == today.day and d.month == today.month:
-        c_start = COLOR_GREEN_START
-        c_end = COLOR_GREEN_END
-
-    if is_date_to_display(d, today, nb_days_print):
-        pprint_sep()
-        print("{} {} :{}".format(c_start, menu["date"], c_end))
-
-        if menu["names"] != [""]:
-            for idx in range(len(menu["names"])):
-                name = textwrap.wrap(menu["names"][idx], 80)
-
-                nb_line = len(name)
-                if nb_line < 2:
-                    print(
-                        "{}   - {:<80} {:<5} {}".format(
-                            c_start, name[0], menu["prices"][idx], c_end
-                        )
-                    )
-                else:
-                    print("{}   - {:<80} {}".format(c_start, name[0], c_end))
-                    for i in range(1, nb_line - 1):
-                        print("{}     {:<80} {}".format(c_start, name[i], c_end))
-
-                    print(
-                        "{}     {:<80} {:<5} {}".format(
-                            c_start, name[-1], menu["prices"][idx], c_end
-                        )
-                    )
-
-        if menu["side_dishes"] != [""]:
-            print("{} {} :{}".format(c_start, "Accompagnements", c_end))
-
-            for idx in range(len(menu["side_dishes"])):
-                print(
-                    "{}   - {:<80} {}".format(c_start, menu["side_dishes"][idx], c_end)
-                )
+        print(f"+{'-' * self.print_base_width}+")
 
 
-def main():
-    parser = argparse.ArgumentParser()
+def main() -> None:
+    parser = argparse.ArgumentParser(description="AGRICAS RIA - Menu Printer")
     parser.add_argument(
-        "--days",
         "-d",
-        help="number of extra days to display (default: 1)",
+        "--days",
         type=int,
-        default=1,
+        help="Number of days to display menus for from today.",
+        default=0,
+    )
+    args = parser.parse_args()
+
+    agricas_printer = AgricasMenuPrinter(
+        url=_URL, headers=_HEADERS, print_base_width=_PRINT_BASE_WIDTH
     )
 
-    args = args = parser.parse_args()
+    menus = agricas_printer.get_menus()
 
-    menu_lst = get_data()
+    filtered_menus = agricas_printer.filter_menu(
+        menus,
+        days=max(
+            0,
+            args.days,
+        ),
+    )
 
-    for menu in menu_lst:
-        pprint_menu(menu, args.days)
-    pprint_sep()
+    agricas_printer.print_menus(filtered_menus)
 
 
 if __name__ == "__main__":
