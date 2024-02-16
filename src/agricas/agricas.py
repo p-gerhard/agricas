@@ -101,6 +101,7 @@ class AgricasMenuPrinter:
             r"(\w+)\s+(\d+\s+\w+)",
             cat.find("h3", class_="menuCategroyTitle").text.strip(),
         )
+
         if match:
             day_name, day_date = match.groups()
             date_obj = self.parse_date(f"{day_name} {day_date}", year)
@@ -117,7 +118,7 @@ class AgricasMenuPrinter:
                 if side:
                     sides.update(val.strip().lower() for val in side.split("-"))
 
-            return date_obj.strftime("%A"), {
+            return date_obj.strftime("%A_%d"), {
                 "date": date_obj,
                 "menus": menus,
                 "sides": sides,

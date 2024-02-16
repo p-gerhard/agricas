@@ -1,13 +1,15 @@
 # Agricas
 
-Web scraper for the URL http://www.agricas.fr/menu-au-ria. It parses menus, prices and side dishes for the available days.
+Web scraper for the URL http://www.agricas.fr/menu-au-ria. It parses menus,
+prices and side dishes for the available days.
 
 ## Install and Run
 
 1. Have `python >= 3.6` and `pip` installed.
 2. `pip install git+https://github.com/p-gerhard/agricas` -- Install dependencies
-3. `agricas -d DAYS` -- Run the script. Use the optionnal arugment `-d DAYS` with `DAYS >= 1` to choose the number days displayed. 
-Use `-h` for more informations.
+3. `agricas -d DAYS` -- Run the script. Use the optionnal arugment `-d DAYS`
+with `DAYS >= 1` to choose the number days displayed. Use `-h` for more
+informations.
 
 ## Output example:
 
