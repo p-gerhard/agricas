@@ -11,6 +11,9 @@ prices and side dishes for the available days.
 with `DAYS >= 1` to choose the number days displayed. Use `-h` for more
 informations.
 
+**Note**: Ensure locale `"fr_FR.UTF-8"` is available. (if not eg. 
+`sudo apt-get install locales` followed by `sudo dpkg-reconfigure locales`).
+
 ## Output example:
 
 ```bash
