@@ -58,7 +58,7 @@ class AgricasMenuPrinter:
             print(f"Error fetching HTML: {e}")
             return None
 
-    def parse_date(self, date_str: str, year: str) -> datetime:
+    def parse_date(self, date_str: str) -> datetime:
         """
         Parse a date string and replace the year.
 
@@ -69,7 +69,8 @@ class AgricasMenuPrinter:
         Returns:
         - datetime: Parsed and formatted date.
         """
-        return datetime.strptime(date_str, "%A %d %B").replace(year=year)
+
+        return datetime.strptime(date_str, f"%A %d %B %Y")
 
     def extract_menu_info(self, item) -> tuple[str, str, str]:
         """
@@ -104,7 +105,10 @@ class AgricasMenuPrinter:
 
         if match:
             day_name, day_date = match.groups()
-            date_obj = self.parse_date(f"{day_name} {day_date}", year)
+
+            print(day_name, day_date)
+
+            date_obj = self.parse_date(f"{day_name} {day_date} {year}")
 
             menus = []
             sides = set()
