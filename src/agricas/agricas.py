@@ -106,8 +106,6 @@ class AgricasMenuPrinter:
         if match:
             day_name, day_date = match.groups()
 
-            print(day_name, day_date)
-
             date_obj = self.parse_date(f"{day_name} {day_date} {year}")
 
             menus = []
